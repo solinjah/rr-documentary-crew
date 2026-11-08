@@ -1,0 +1,20 @@
+[project]
+name = "rr_documentary_crew"
+version = "0.1.0"
+description = "Riddles & Realms documentary research crew: research, public-domain images, first-draft scripts."
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[tools]>=0.150.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+rr_documentary_crew = "rr_documentary_crew.main:run"
+run_crew = "rr_documentary_crew.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"

@@ -1,0 +1,64 @@
+research_task:
+  description: >
+    Research {topic} for a 10-minute documentary episode and three 60 to 75 second Shorts.
+    Start with the wikipedia_article tool to map the topic and collect its reference links, then read the best
+    sources directly (use the website reading tool on their URLs, and web search if it is available).
+
+    Write the research file in Markdown with these sections:
+    1. One-line summary: the single strangest true claim, as a hook.
+    2. Timeline: dated events in order, each ending with its source number in brackets, like [3].
+    3. People: who they were, with sources.
+    4. Key facts and figures: numbers, names, places, each with a source. Where sources disagree, list every
+       version with its source.
+    5. Direct quotes: only exact words from a source, with who said them, when, and the source.
+    6. What the record cannot tell us: gaps, legends, and claims with no good source.
+    7. Shorts hooks: three separate 60-second angles on the story.
+    8. Sources: a numbered list with full title, publisher or archive, date, and URL.
+    Never state a fact without a source number. Never invent quotes, dates or numbers.
+  expected_output: >
+    A Markdown research file for {topic} following the eight sections above, with numbered sources.
+  agent: researcher
+  output_file: "{output_dir}/{topic_slug}/research.md"
+
+image_task:
+  description: >
+    Using the research file, collect 8 to 12 openly licensed images for {topic} into the folder for topic_slug
+    "{topic_slug}" with the commons_image_download tool. Run at least six specific searches (the main person,
+    other people, places, vessels or buildings, newspaper pages or documents, objects, and the year or event).
+    Then write a short shot list in Markdown: for each saved file, what it shows and which part of the story it
+    fits, plus a list of story beats that have no image.
+  expected_output: >
+    A Markdown shot list naming each saved image file, what it shows, where it fits in the story, its license,
+    and the story beats with no image.
+  agent: image_scout
+  context: [research_task]
+  output_file: "{output_dir}/{topic_slug}/shot_list.md"
+
+script_task:
+  description: >
+    Using only the research file, write a first-draft package for {topic}:
+
+    A. Documentary episode script, 1,300 to 1,500 words (about 10 minutes):
+       - Cold open (about 100 words): the strangest true claim first, no channel greeting.
+       - Five to seven chapters, each with a short title.
+       - A chapter on what the record cannot settle, giving every side with its source.
+       - Close (about 80 words), then this exact call to action:
+         "If this record kept you watching, subscribe to the channel, so the next Extreme Case File finds you.
+         Your first book is free, along with a free case file, at riddles and realms dot store. The link is in
+         the description. Read it with the lights on."
+       - After every paragraph, list its source numbers in brackets.
+       - Write years and numbers as they should be spoken (for example "nineteen-oh-seven").
+
+    B. Three Shorts scripts, 160 to 175 words each (60 to 75 seconds), each built on one of the research file's
+       Shorts hooks. Open on the hook, no greeting. End each with:
+       "Subscribe for the next record. Your free book and a free case file are linked in the bio."
+
+    C. A YouTube title (under 70 characters, leading with the strange claim) and a two-sentence description.
+
+    Mark anything uncertain with [CHECK]. Do not add any fact that is not in the research file.
+  expected_output: >
+    A Markdown file with the episode script, three Shorts scripts, and the title and description, with source
+    numbers after each paragraph.
+  agent: script_drafter
+  context: [research_task, image_task]
+  output_file: "{output_dir}/{topic_slug}/script_draft.md"
