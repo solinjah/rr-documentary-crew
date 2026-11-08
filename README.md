@@ -1,76 +1,55 @@
 # Riddles & Realms Documentary Crew
 
-Three AI agents that prepare a documentary package for one topic:
+Three AI agents, run on the Anthropic API, that prepare a documentary package for one topic:
 
 | Agent | Produces |
 | --- | --- |
-| Archive Researcher | `research.md`: timeline, facts and quotes, each with a numbered source, plus what the record cannot settle |
-| Image Scout | `images/` with 8 to 12 openly licensed images, `credits.csv` (author, license, source page) and `shot_list.md` |
-| Script Drafter | `script_draft.md`: a 10-minute episode script, three 60 to 75 second Shorts scripts, a title and a description |
+| Archive Researcher | `research.md`: timeline, facts and quotes with numbered sources, what the record cannot settle, Shorts hooks |
+| Image Scout | `images/` with openly licensed images from Wikimedia Commons, `credits.csv` (author, license, source) and `shot_list.md` |
+| Script Drafter | `script_draft.md`: a 10-minute episode script, three 60 to 75 second Shorts scripts, a title and description |
 
 Claude, the editor, then fact-checks the package and produces the narrated episode, the Shorts, captions and thumbnail.
 
+It needs only Python packages that install ready-made on Intel and Apple Silicon Macs.
+
 ## One-time setup on the Mac
 
-Open **Terminal** and run these one at a time.
+You already installed **uv**. In Terminal:
 
-1. Install uv, the tool that installs Python and crewAI for you:
+1. Get the project. With the free **GitHub Desktop** app: File → Clone Repository → `solinjah/rr-documentary-crew`.
+   It lands in `~/Documents/GitHub/rr-documentary-crew`.
 
-   ```
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-
-   Close Terminal and open it again.
-
-2. Install crewAI:
-
-   ```
-   uv tool install crewai
-   ```
-
-3. Get this project onto the Mac. The easiest way for a private repository is the free **GitHub Desktop** app:
-   File → Clone Repository → `solinjah/rr-documentary-crew` → save it in your Documents folder.
-
-4. Go into the project folder and install its parts:
+2. Create your settings file and open it:
 
    ```
    cd ~/Documents/GitHub/rr-documentary-crew
-   crewai install
-   ```
-
-5. Create your settings file and open it:
-
-   ```
    cp .env.example .env
    open -e .env
    ```
 
-   Paste your API key after `ANTHROPIC_API_KEY=` (or switch to the OpenAI lines), and set `OUTPUT_DIR` to the folder
-   Claude can read, for example:
-
-   ```
-   OUTPUT_DIR=/Users/ronaljoseph/Desktop/1 milly/untitled folder/TTRR/Book/crew-output
-   ```
-
-   Save and close. The `.env` file stays on your Mac and is never uploaded to GitHub.
+   Paste your Anthropic API key after `ANTHROPIC_API_KEY=`, then save and close. The `.env` file stays on your Mac
+   and is never uploaded.
 
 ## Run it for a topic
 
 ```
 cd ~/Documents/GitHub/rr-documentary-crew
-TOPIC="Violet Jessop" crewai run
+uv run rr-crew "Violet Jessop"
 ```
 
-When it finishes, the package is in `OUTPUT_DIR/violet-jessop/`. Tell Claude the topic is ready.
+The first run takes a minute longer while uv sets things up. When it finishes, the package is in
+`crew-output/violet-jessop/` inside your Book folder. Tell Claude the topic is ready.
+
+To get new versions of the crew later: open GitHub Desktop and press **Fetch origin**, then **Pull**.
 
 ## Rules the agents follow
 
 - Every fact carries a numbered source; disagreements are listed side by side, never resolved by guessing.
-- Images are public domain or openly licensed, logged with author and license, and never show a different
-  person, place or event as if it were this one.
+- Images are public domain or openly licensed, logged with author and license; anything that might show the wrong
+  person, place or event is flagged for removal.
 - Scripts use only facts from the research file and mark anything uncertain with [CHECK].
 
 ## Costs
 
-Each run calls your AI provider several times. Expect roughly a few cents to under a dollar per topic with a
-Sonnet-class model; check your provider's usage page after the first run.
+Each topic uses several API calls plus up to about 15 web searches. Check the usage page at console.anthropic.com
+after your first run to see the real cost per topic.
