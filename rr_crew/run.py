@@ -2,7 +2,11 @@
 
     uv run rr-crew "Violet Jessop"
 
-Writes research.md, images/ (with credits.csv), shot_list.md and script_draft.md into OUTPUT_DIR/<topic-slug>/.
+    uv run rr-crew --ideas
+
+Writes research.md, images/ (with credits.csv), shot_list.md, script_draft.md, hooks.md, script_final.md, titles.md
+and thumbnails.md into OUTPUT_DIR/<topic-slug>/. Finished steps are reused on a re-run (use --fresh to redo them).
+--ideas writes ten ranked video ideas to OUTPUT_DIR/_ideas/.
 """
 from __future__ import annotations
 
@@ -11,6 +15,7 @@ import json
 import os
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 import anthropic
@@ -80,48 +85,93 @@ class Agent:
         raise RuntimeError("The agent did not finish within the round limit.")
 
 
+def channel_profile() -> str:
+    for p in (Path.cwd() / "channel.md", Path(__file__).resolve().parent.parent / "channel.md"):
+        if p.exists():
+            return p.read_text()
+    return "(no channel profile found)"
+
+
+def step(out: Path, name: str, label: str, fresh: bool, make) -> str:
+    """Run one bot, or reuse its file from an earlier run so a re-run costs nothing for finished steps."""
+    f = out / name
+    if f.exists() and not fresh:
+        print(f"{label} reusing {name}")
+        return f.read_text()
+    print(f"{label} ...")
+    text = make()
+    f.write_text(text)
+    print(f"      saved {name} ({len(text.split())} words)")
+    return text
+
+
+def run_ideas(agent: Agent, root: Path):
+    profile = channel_profile()
+    done = sorted(p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith("_")) if root.exists() else []
+    print("Scouting 10 new video ideas ...")
+    search = dict(SEARCH_TOOL, max_uses=8)
+    ideas = agent.ask(prompts.IDEA_SCOUT,
+                      f"CHANNEL PROFILE:\n{profile}\n\nTopics already researched by the crew: {', '.join(done) or 'none'}",
+                      tools=[search, WIKI_TOOL])
+    folder = root / "_ideas"
+    folder.mkdir(parents=True, exist_ok=True)
+    f = folder / f"ideas-{date.today().isoformat()}.md"
+    f.write_text(ideas)
+    print(f"\nDone. Ideas saved in {f}")
+
+
 def main():
     load_dotenv()
     ap = argparse.ArgumentParser(description="Riddles & Realms documentary crew")
     ap.add_argument("topic", nargs="*", help='Topic, e.g. "Violet Jessop"')
+    ap.add_argument("--ideas", action="store_true", help="Suggest 10 new video ideas instead of building a topic")
     ap.add_argument("--skip-images", action="store_true")
+    ap.add_argument("--fresh", action="store_true", help="Redo every step instead of reusing finished ones")
     a = ap.parse_args()
-    topic = " ".join(a.topic) or os.getenv("TOPIC") or input("Topic: ").strip()
-    if not topic:
-        sys.exit("No topic given.")
     if not os.getenv("ANTHROPIC_API_KEY"):
         sys.exit("ANTHROPIC_API_KEY is missing. Put it in the .env file (see .env.example).")
     model = os.getenv("MODEL", "claude-sonnet-5-5").removeprefix("anthropic/")
-    out = Path(os.getenv("OUTPUT_DIR", "output")).expanduser() / slugify(topic)
-    out.mkdir(parents=True, exist_ok=True)
+    root = Path(os.getenv("OUTPUT_DIR", "output")).expanduser()
     agent = Agent(anthropic.Anthropic(), model)
+    if a.ideas:
+        return run_ideas(agent, root)
 
-    print(f"[1/4] Researching {topic} ...")
-    research = agent.ask(prompts.RESEARCHER, f"Topic: {topic}", tools=[SEARCH_TOOL, FETCH_TOOL, WIKI_TOOL])
-    (out / "research.md").write_text(research)
-    print(f"      saved research.md ({len(research.split())} words)")
+    topic = " ".join(a.topic) or os.getenv("TOPIC") or input("Topic: ").strip()
+    if not topic:
+        sys.exit("No topic given.")
+    out = root / slugify(topic)
+    out.mkdir(parents=True, exist_ok=True)
+    profile = f"CHANNEL PROFILE:\n{channel_profile()}\n\n"
+
+    research = step(out, "research.md", f"[1/7] Researching {topic}", a.fresh,
+                    lambda: agent.ask(prompts.RESEARCHER, f"Topic: {topic}", tools=[SEARCH_TOOL, FETCH_TOOL, WIKI_TOOL]))
 
     if not a.skip_images:
-        print("[2/4] Finding images ...")
-        raw = agent.ask(prompts.HOUSE, prompts.IMAGE_QUERIES + "\n\n" + research)
-        try:
-            queries = json.loads(raw[raw.index("["): raw.rindex("]") + 1])
-        except ValueError:
-            queries = [topic]
-        seen, folder = set(), out / "images"
-        for q in queries[:10]:
-            for line in download_images(q, folder, per_query=2, seen=seen):
-                print(f"      {line}")
-        credits = (folder / "credits.csv").read_text() if (folder / "credits.csv").exists() else "(no images found)"
-        print("[3/4] Writing the shot list ...")
-        shots = agent.ask(prompts.SHOT_LIST, f"RESEARCH FILE:\n{research}\n\nCREDITS:\n{credits}")
-        (out / "shot_list.md").write_text(shots)
+        def images():
+            raw = agent.ask(prompts.HOUSE, prompts.IMAGE_QUERIES + "\n\n" + research)
+            try:
+                queries = json.loads(raw[raw.index("["): raw.rindex("]") + 1])
+            except ValueError:
+                queries = [topic]
+            seen, folder = set(), out / "images"
+            for q in queries[:10]:
+                for line in download_images(q, folder, per_query=2, seen=seen):
+                    print(f"      {line}")
+            credits = (folder / "credits.csv").read_text() if (folder / "credits.csv").exists() else "(no images found)"
+            return agent.ask(prompts.SHOT_LIST, f"RESEARCH FILE:\n{research}\n\nCREDITS:\n{credits}")
+        step(out, "shot_list.md", "[2/7] Finding images and writing the shot list", a.fresh, images)
 
-    print("[4/4] Drafting the scripts ...")
-    script = agent.ask(prompts.SCRIPT, f"RESEARCH FILE:\n{research}")
-    (out / "script_draft.md").write_text(script)
+    draft = step(out, "script_draft.md", "[3/7] Drafting the scripts", a.fresh,
+                 lambda: agent.ask(prompts.SCRIPT, f"RESEARCH FILE:\n{research}"))
+    hooks = step(out, "hooks.md", "[4/7] Writing opening hooks", a.fresh,
+                 lambda: agent.ask(prompts.HOOKS, f"{profile}RESEARCH FILE:\n{research}\n\nDRAFT SCRIPTS:\n{draft}"))
+    final = step(out, "script_final.md", "[5/7] Retention edit", a.fresh,
+                 lambda: agent.ask(prompts.RETENTION, f"{profile}RESEARCH FILE:\n{research}\n\nDRAFT SCRIPTS:\n{draft}\n\nHOOKS:\n{hooks}"))
+    titles = step(out, "titles.md", "[6/7] Writing titles and description", a.fresh,
+                  lambda: agent.ask(prompts.TITLES, f"{profile}FINAL SCRIPTS:\n{final}"))
+    step(out, "thumbnails.md", "[7/7] Designing thumbnails", a.fresh,
+         lambda: agent.ask(prompts.THUMBNAILS, f"{profile}TITLES:\n{titles}\n\nFINAL SCRIPTS:\n{final}"))
     print(f"\nDone. Package saved in {out}")
-
 
 if __name__ == "__main__":
     main()
