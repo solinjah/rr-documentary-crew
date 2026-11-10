@@ -27,7 +27,7 @@ def wikipedia_article(title: str) -> str:
     text = next(iter(t["query"]["pages"].values())).get("extract", "")
     r = requests.get(WIKI, params={"action": "query", "prop": "extlinks", "titles": page, "ellimit": 200, "format": "json"}, headers=UA, timeout=30).json()
     links = [l["*"] for l in next(iter(r["query"]["pages"].values())).get("extlinks", [])]
-    return f"# {page}\nhttps://en.wikipedia.org/wiki/{page.replace(' ', '_')}\n\n{text[:24000]}\n\n## Reference links\n" + "\n".join(links[:120])
+    return f"# {page}\nhttps://en.wikipedia.org/wiki/{page.replace(' ', '_')}\n\n{text[:12000]}\n\n## Reference links\n" + "\n".join(links[:60])
 
 
 def download_images(query: str, folder: Path, per_query: int = 2, seen: set | None = None) -> list[str]:

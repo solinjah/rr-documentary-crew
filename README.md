@@ -38,6 +38,9 @@ You already installed **uv**. In Terminal:
 
 ## Run it for a topic
 
+By default the crew only does the research (the part that needs web searching), which keeps the cost low; Claude
+writes the scripts, hooks and picture prompts from that file. Add `--full` to have the other bots run too.
+
 ```
 cd ~/Documents/GitHub/rr-documentary-crew
 uv run rr-crew "Violet Jessop"
@@ -68,5 +71,5 @@ To get new versions of the crew later: open GitHub Desktop and press **Fetch ori
 
 ## Costs
 
-Each topic uses several API calls plus up to about 15 web searches. Check the usage page at console.anthropic.com
+Research uses up to 8 web searches and reads up to 5 pages per topic. Check the usage page at console.anthropic.com
 after your first run to see the real cost per topic.

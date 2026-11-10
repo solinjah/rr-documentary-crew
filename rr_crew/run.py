@@ -30,8 +30,8 @@ WIKI_TOOL = {
                    "Use it to map a topic and find better sources to cite.",
     "input_schema": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]},
 }
-SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 15}
-FETCH_TOOL = {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 15}
+SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 8}
+FETCH_TOOL = {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 5, "max_content_tokens": 8000}
 FETCH_BETA = "web-fetch-2025-09-10"
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "64000"))
 CUT = "[OUTPUT CUT OFF: this file is incomplete]"
@@ -139,7 +139,8 @@ def main():
     ap = argparse.ArgumentParser(description="Riddles & Realms documentary crew")
     ap.add_argument("topic", nargs="*", help='Topic, e.g. "Violet Jessop"')
     ap.add_argument("--ideas", action="store_true", help="Suggest 10 new video ideas instead of building a topic")
-    ap.add_argument("--skip-images", action="store_true")
+    ap.add_argument("--full", action="store_true",
+                    help="Also run images, scripts, hooks, retention, titles and thumbnails (costs more)")
     ap.add_argument("--fresh", action="store_true", help="Redo every step instead of reusing finished ones")
     a = ap.parse_args()
     if not os.getenv("ANTHROPIC_API_KEY"):
@@ -160,7 +161,12 @@ def main():
     research = step(out, "research.md", f"[1/7] Researching {topic}", a.fresh,
                     lambda: agent.ask(prompts.RESEARCHER, f"Topic: {topic}", tools=[SEARCH_TOOL, FETCH_TOOL, WIKI_TOOL]))
 
-    if not a.skip_images:
+    if not a.full:
+        print(f"\nDone. Research saved in {out / 'research.md'}\n"
+              "Claude writes the scripts, hooks and picture prompts from it. Add --full to have the bots do them too.")
+        return
+
+    if True:
         def images():
             raw = agent.ask(prompts.HOUSE, prompts.IMAGE_QUERIES + "\n\n" + research)
             try:
