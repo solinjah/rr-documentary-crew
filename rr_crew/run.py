@@ -47,9 +47,10 @@ def text_of(content) -> str:
 
 class Agent:
     def __init__(self, client: anthropic.Anthropic, model: str):
-        self.client, self.model, self.fetch_ok = client, model, True
+        self.client, self.model, self.fetch_ok, self.cache_ok = client, model, True, True
 
-    def _call(self, system, messages, tools):
+    def _call(self, system, raw_messages, tools):
+        messages = self._cached(raw_messages)
         # Streaming lets long answers finish; a high token ceiling leaves room for the model's thinking plus the file.
         kwargs = dict(model=self.model, max_tokens=MAX_TOKENS, system=system, messages=messages)
         if tools:
@@ -59,11 +60,40 @@ class Agent:
                 with self.client.beta.messages.stream(betas=[FETCH_BETA], **kwargs) as s:
                     return s.get_final_message()
             except anthropic.BadRequestError as e:
+                if self.cache_ok and "cache" in str(e).lower():
+                    print("  (caching unavailable, continuing without it)")
+                    self.cache_ok = False
+                    return self._call(system, raw_messages, tools)
                 print(f"  (page fetching unavailable, continuing with web search only: {e.message[:120]})")
                 self.fetch_ok = False
                 kwargs["tools"] = [t for t in tools if t.get("name") != "web_fetch"]
-        with self.client.messages.stream(**kwargs) as s:
-            return s.get_final_message()
+        try:
+            with self.client.messages.stream(**kwargs) as s:
+                return s.get_final_message()
+        except anthropic.BadRequestError as e:
+            if not self.cache_ok or "cache" not in str(e).lower():
+                raise
+            print("  (caching unavailable, continuing without it)")
+            self.cache_ok = False
+            return self._call(system, raw_messages, tools)
+
+    def _cached(self, messages):
+        """Mark the end of the conversation so far as cacheable. Each research round re-sends everything read so far;
+        cached tokens are billed at a small fraction of the normal input price."""
+        if not self.cache_ok or not messages:
+            return messages
+        msgs = [dict(m) for m in messages]
+        last = msgs[-1]
+        content = last["content"]
+        if isinstance(content, str):
+            content = [{"type": "text", "text": content}]
+        content = [dict(b) for b in content]
+        for b in reversed(content):
+            if b.get("type") in ("text", "tool_result", "web_search_tool_result", "web_fetch_tool_result"):
+                b["cache_control"] = {"type": "ephemeral"}
+                break
+        last["content"] = content
+        return msgs
 
     def ask(self, system: str, prompt: str, tools=None, max_rounds: int = 40) -> str:
         messages = [{"role": "user", "content": prompt}]
