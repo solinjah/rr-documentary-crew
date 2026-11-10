@@ -43,7 +43,7 @@ writes the scripts, hooks and picture prompts from that file. Add `--full` to ha
 
 ```
 cd ~/Documents/GitHub/rr-documentary-crew
-uv run rr-crew "Violet Jessop"
+uv run python -m rr_crew.run "Violet Jessop"
 ```
 
 The first run takes a minute longer while uv sets things up. When it finishes, the package is in
@@ -52,7 +52,7 @@ The first run takes a minute longer while uv sets things up. When it finishes, t
 To get ten new video ideas:
 
 ```
-uv run rr-crew --ideas
+uv run python -m rr_crew.run --ideas
 ```
 
 If a run stops part-way, run the same command again: finished steps are reused, so you only pay for the rest.
