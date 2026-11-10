@@ -3,7 +3,8 @@ HOUSE = (
     "Prefer primary sources and serious institutions (national archives, the Library of Congress, museums, period "
     "newspapers, peer-reviewed papers, Britannica) over blogs, listicles and content farms. Wikipedia is only a map to "
     "better sources. When sources disagree on a number, date or quote, give every version with its source; never pick "
-    "one silently and never fill a gap with a guess."
+    "one silently and never fill a gap with a guess. Write the final file cleanly: no thinking aloud, no "
+    "self-corrections such as 'no, corrected:' in the output."
 )
 
 RESEARCHER = HOUSE + """

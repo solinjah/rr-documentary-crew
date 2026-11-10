@@ -33,6 +33,8 @@ WIKI_TOOL = {
 SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 15}
 FETCH_TOOL = {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 15}
 FETCH_BETA = "web-fetch-2025-09-10"
+MAX_TOKENS = int(os.getenv("MAX_TOKENS", "64000"))
+CUT = "[OUTPUT CUT OFF: this file is incomplete]"
 
 
 def slugify(text: str) -> str:
@@ -48,17 +50,20 @@ class Agent:
         self.client, self.model, self.fetch_ok = client, model, True
 
     def _call(self, system, messages, tools):
-        kwargs = dict(model=self.model, max_tokens=16000, system=system, messages=messages)
+        # Streaming lets long answers finish; a high token ceiling leaves room for the model's thinking plus the file.
+        kwargs = dict(model=self.model, max_tokens=MAX_TOKENS, system=system, messages=messages)
         if tools:
             kwargs["tools"] = tools
         if self.fetch_ok and any(t.get("name") == "web_fetch" for t in tools or []):
             try:
-                return self.client.beta.messages.create(betas=[FETCH_BETA], **kwargs)
+                with self.client.beta.messages.stream(betas=[FETCH_BETA], **kwargs) as s:
+                    return s.get_final_message()
             except anthropic.BadRequestError as e:
                 print(f"  (page fetching unavailable, continuing with web search only: {e.message[:120]})")
                 self.fetch_ok = False
                 kwargs["tools"] = [t for t in tools if t.get("name") != "web_fetch"]
-        return self.client.messages.create(**kwargs)
+        with self.client.messages.stream(**kwargs) as s:
+            return s.get_final_message()
 
     def ask(self, system: str, prompt: str, tools=None, max_rounds: int = 40) -> str:
         messages = [{"role": "user", "content": prompt}]
@@ -81,7 +86,13 @@ class Agent:
                 if results:
                     messages.append({"role": "user", "content": results})
                     continue
-            return text_of(r.content)
+            text = text_of(r.content)
+            if r.stop_reason == "max_tokens":
+                print("  WARNING: the answer hit the length limit and is incomplete.")
+                text = (text + "\n\n" + CUT).strip()
+            if not text:
+                raise RuntimeError(f"The agent returned no text (stop reason: {r.stop_reason}). Nothing was saved; run again.")
+            return text
         raise RuntimeError("The agent did not finish within the round limit.")
 
 
@@ -95,13 +106,16 @@ def channel_profile() -> str:
 def step(out: Path, name: str, label: str, fresh: bool, make) -> str:
     """Run one bot, or reuse its file from an earlier run so a re-run costs nothing for finished steps."""
     f = out / name
-    if f.exists() and not fresh:
+    if f.exists() and not fresh and f.read_text().strip() and CUT not in f.read_text():
         print(f"{label} reusing {name}")
         return f.read_text()
     print(f"{label} ...")
     text = make()
     f.write_text(text)
     print(f"      saved {name} ({len(text.split())} words)")
+    if CUT in text:
+        sys.exit(f"\nStopped: {name} came back incomplete, so the next bots were not run. Run the same command again; "
+                 "finished steps are kept.")
     return text
 
 
